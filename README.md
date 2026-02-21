@@ -85,6 +85,7 @@ You should see the CallFlow Voice console.
   - `layout.tsx` – Root layout, global Tailwind import.
   - `page.tsx` – Main call console page.
   - `api/calls/*` – Stub API routes for starting calls, sending instructions, ending calls, etc.
+  - `api/intelligence/turn` – Stub endpoint for the intelligence layer (MiniMax + Convex).
 - `components/`
   - `AppShell.tsx` – Header + shell layout.
   - `LogoMark.tsx` – Chat/agent logo icon.
@@ -97,6 +98,9 @@ You should see the CallFlow Voice console.
   - `types.ts` – Shared TypeScript types (call status, transcript entries, instructions, offer state, etc.).
   - `store/callStore.ts` – Zustand store handling call session state and actions.
   - `realtime.ts` – Client‑side simulator for call events (placeholder for Convex/Twilio/MiniMax wiring).
+  - `intelligence.ts` – Types + helper for the intelligence layer turn API.
+- `docs/`
+  - `intelligence-demo-flow.md` – Insurance-options demo script + JSON contract for intelligence.
 
 ## Scripts
 
@@ -105,10 +109,24 @@ You should see the CallFlow Voice console.
 - `npm start` – Run production server (after `npm run build`).
 - `npm run lint` – Run ESLint (Next.js config).
 
+## Intelligence Layer Notes (MiniMax + Convex)
+
+For collaborators working on the reasoning/memory side:
+
+- See `docs/intelligence-demo-flow.md` for:
+  - The **insurance options** demo script (UCSF / CVS / One Medical).
+  - The proposed JSON contract for `/api/intelligence/turn`.
+- See `lib/intelligence.ts` for the TypeScript types and a small client helper.
+- The route `app/api/intelligence/turn/route.ts` currently contains a **stub** implementation that:
+  - Parses the last user utterance.
+  - Picks option B when the user mentions “B” or “CVS”.
+  - Returns `agentReplyText`, `selectedOptionId`, and updated memory.
+
+You can replace the body of that route (and/or the `callIntelligenceTurn` helper) with real MiniMax + Convex logic while keeping the same request/response shape.
+
 ## Next Steps / Integration Points
 
 - Replace `lib/realtime.ts` with real Convex (or WebSocket) event subscriptions.
 - Implement Twilio outbound call initiation in `app/api/calls/outbound/route.ts`.
 - Connect instructions API to MiniMax (or your agent stack) via Convex.
 - Add authentication and multi‑operator support if needed.
-
