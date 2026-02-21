@@ -73,6 +73,58 @@ export const insertCallLog = internalMutation({
   handler: async (ctx, args) => ctx.db.insert("callLogs", args as any),
 });
 
+/* ── Transcript + Call Log Updates ───────────────────────────── */
+
+export const appendTranscriptEntries = internalMutation({
+  args: {
+    sessionId: v.id("callSessions"),
+    entries: v.array(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const log = await ctx.db
+      .query("callLogs")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .first();
+
+    if (log) {
+      await ctx.db.patch(log._id, {
+        transcript: [...log.transcript, ...args.entries],
+      });
+    }
+  },
+});
+
+export const updateCallLog = internalMutation({
+  args: {
+    sessionId: v.id("callSessions"),
+    outcome: v.string(),
+    summary: v.optional(v.string()),
+    recordingUrl: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const log = await ctx.db
+      .query("callLogs")
+      .withIndex("by_session", (q) => q.eq("sessionId", args.sessionId))
+      .first();
+
+    if (log) {
+      await ctx.db.patch(log._id, {
+        outcome: args.outcome as any,
+        summary: args.summary,
+        recordingUrl: args.recordingUrl,
+      });
+    } else {
+      await ctx.db.insert("callLogs", {
+        sessionId: args.sessionId,
+        outcome: args.outcome as any,
+        transcript: [],
+        summary: args.summary,
+        recordingUrl: args.recordingUrl,
+      });
+    }
+  },
+});
+
 /* ── Compound Tool Queries ───────────────────────────────────── */
 
 export const lookupAllCenters = internalQuery({

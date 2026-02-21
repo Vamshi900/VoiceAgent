@@ -1,4 +1,4 @@
-import { internalMutation, internalAction } from "../_generated/server";
+import { mutation, action } from "../_generated/server";
 import { v } from "convex/values";
 import { components, internal } from "../_generated/api";
 import { transferAgent } from "../agent";
@@ -6,7 +6,7 @@ import { createThread } from "@convex-dev/agent";
 
 /* ── Create Session ───────────────────────────────────────────── */
 
-export const createSession = internalMutation({
+export const createSession = mutation({
   args: {
     prospectPhone: v.string(),
     callType: v.optional(v.string()),
@@ -64,6 +64,13 @@ export const createSession = internalMutation({
       turnCount: 0,
     });
 
+    // Create initial call log for real-time transcript
+    await ctx.db.insert("callLogs", {
+      sessionId,
+      outcome: "in_progress",
+      transcript: [],
+    });
+
     // Build center summaries for the opening
     const centerSummaries = centers.map((c) => ({
       id: c._id,
@@ -84,7 +91,7 @@ export const createSession = internalMutation({
 
 /* ── End Session ──────────────────────────────────────────────── */
 
-export const endSession = internalAction({
+export const endSession = action({
   args: {
     sessionId: v.id("callSessions"),
     endReason: v.string(),
@@ -142,11 +149,10 @@ export const endSession = internalAction({
       else outcome = "failed";
     }
 
-    // Create call log
-    await ctx.runMutation(internal.helpers.insertCallLog, {
+    // Update existing call log with final outcome
+    await ctx.runMutation(internal.helpers.updateCallLog, {
       sessionId: args.sessionId,
       outcome,
-      transcript: [],
       summary,
       recordingUrl: args.recordingUrl,
     });

@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { salesAgent } from "./agent";
 import { getGuardrailProvider } from "./guardrails/index";
 
@@ -163,6 +163,27 @@ http.route({
       agentReply = guardrailResult.sanitized;
     }
 
+    // Store transcript entries for real-time display
+    const transcriptEntries: any[] = [];
+    if (utterance) {
+      transcriptEntries.push({
+        role: "user",
+        text: utterance,
+        timestamp: Date.now(),
+        turnNumber: session.turnCount + 1,
+      });
+    }
+    transcriptEntries.push({
+      role: "agent",
+      text: agentReply,
+      timestamp: Date.now(),
+      turnNumber: session.turnCount + 1,
+    });
+    await ctx.runMutation(internal.helpers.appendTranscriptEntries, {
+      sessionId,
+      entries: transcriptEntries,
+    });
+
     // Update session state
     await ctx.runMutation(internal.helpers.patchSession, {
       sessionId,
@@ -200,7 +221,7 @@ http.route({
     const body = await request.json();
 
     const result = await ctx.runMutation(
-      internal.functions.sessions.createSession,
+      api.functions.sessions.createSession,
       {
         prospectPhone: body.prospectPhone,
         callType: body.callType,
@@ -226,7 +247,7 @@ http.route({
     const body = await request.json();
 
     const result = await ctx.runAction(
-      internal.functions.sessions.endSession,
+      api.functions.sessions.endSession,
       {
         sessionId: body.sessionId,
         endReason: body.endReason ?? "unknown",

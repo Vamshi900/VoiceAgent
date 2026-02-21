@@ -1,6 +1,6 @@
 /* ── Shared front-end types ───────────────────────────────────── */
 
-/** Call lifecycle statuses */
+/** Call lifecycle statuses (UI-level) */
 export type CallStatus =
   | "IDLE"
   | "DIALING"
@@ -9,48 +9,8 @@ export type CallStatus =
   | "COMPLETED"
   | "FAILED";
 
-/** Call types the operator can initiate */
-export type CallType = "FEEDBACK" | "PROMOTION";
-
 /** Roles that can appear in the transcript */
-export type TranscriptRole = "agent" | "customer" | "system" | "operator";
-
-/** A single transcript line */
-export interface TranscriptEntry {
-  id: string;
-  role: TranscriptRole;
-  text: string;
-  timestamp: number;
-}
-
-/** Operator instruction sent mid-call */
-export interface OperatorInstruction {
-  id: string;
-  content: string;
-  status: "pending" | "applied" | "rejected";
-  createdAt: number;
-}
-
-/** Offer state tracked during a promotional call */
-export interface OfferState {
-  baseAmount: number;
-  requestedAmount: number | null;
-  approvedAmount: number | null;
-  code: string | null;
-}
-
-/** Full call session model used by the Zustand store */
-export interface CallSession {
-  id: string;
-  phoneNumber: string;
-  type: CallType;
-  status: CallStatus;
-  offer: OfferState | null;
-  transcript: TranscriptEntry[];
-  instructions: OperatorInstruction[];
-  startedAt: string | null;
-  endedAt: string | null;
-}
+export type TranscriptRole = "agent" | "user" | "system" | "operator";
 
 /* ── Call phase (Convex intelligence layer) ───────────────────── */
 

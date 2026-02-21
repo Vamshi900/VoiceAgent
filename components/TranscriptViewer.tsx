@@ -1,16 +1,25 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import type { TranscriptEntry } from "../lib/types";
+import { useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 export function TranscriptViewer({
-  entries,
-  isLive
+  sessionId,
+  isLive,
 }: {
-  entries: TranscriptEntry[];
+  sessionId: Id<"callSessions"> | null;
   isLive: boolean;
 }) {
   const endRef = useRef<HTMLDivElement | null>(null);
+
+  const data = useQuery(
+    api.functions.queries.sessionTranscript,
+    sessionId ? { sessionId } : "skip"
+  );
+
+  const entries = data?.messages ?? [];
 
   useEffect(() => {
     if (isLive && endRef.current) {
@@ -29,8 +38,8 @@ export function TranscriptViewer({
             Transcript will appear here once the call is connected.
           </p>
         )}
-        {entries.map((entry) => (
-          <TranscriptBubble key={entry.id} entry={entry} />
+        {entries.map((entry: any, i: number) => (
+          <TranscriptBubble key={`${entry.timestamp}-${i}`} entry={entry} />
         ))}
         <div ref={endRef} />
       </div>
@@ -38,17 +47,20 @@ export function TranscriptViewer({
   );
 }
 
-function TranscriptBubble({ entry }: { entry: TranscriptEntry }) {
+function TranscriptBubble({
+  entry,
+}: {
+  entry: { role: string; text: string; timestamp: number };
+}) {
   const time = new Date(entry.timestamp);
   const timeLabel = time.toLocaleTimeString(undefined, {
     hour: "2-digit",
-    minute: "2-digit"
+    minute: "2-digit",
   });
 
   const isAgent = entry.role === "agent";
-  const isCustomer = entry.role === "customer";
+  const isUser = entry.role === "user" || entry.role === "customer";
   const isSystem = entry.role === "system";
-  const isOperator = entry.role === "operator";
 
   if (isSystem) {
     return (
@@ -60,14 +72,14 @@ function TranscriptBubble({ entry }: { entry: TranscriptEntry }) {
     );
   }
 
-  const align = isAgent || isOperator ? "justify-end" : "justify-start";
+  const align = isAgent ? "justify-end" : "justify-start";
   const bubbleColor = isAgent
     ? "bg-primary text-slate-50"
-    : isOperator
-    ? "bg-emerald-900/80 text-emerald-50"
-    : "bg-slate-800 text-slate-50";
+    : isUser
+    ? "bg-slate-800 text-slate-50"
+    : "bg-emerald-900/80 text-emerald-50";
 
-  const label = isAgent ? "Agent" : isCustomer ? "Customer" : "Operator";
+  const label = isAgent ? "Agent" : isUser ? "Customer" : "Operator";
 
   return (
     <div className={`flex ${align}`}>
@@ -83,4 +95,3 @@ function TranscriptBubble({ entry }: { entry: TranscriptEntry }) {
     </div>
   );
 }
-

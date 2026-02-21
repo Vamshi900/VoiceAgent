@@ -1,54 +1,72 @@
 "use client";
 
 import { useState } from "react";
-import { useCallStore } from "../lib/store/callStore";
-import type { CallStatus } from "../lib/types";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "../convex/_generated/api";
+import type { Id } from "../convex/_generated/dataModel";
 
 const QUICK_TEMPLATES = [
   "Ask if they plan to visit this week.",
   "Confirm their preferred CVS location.",
   "Ask for an email to send the coupon.",
-  "Thank them and end the call politely."
+  "Thank them and end the call politely.",
 ];
 
-export function AgentControlPanel() {
+export function AgentControlPanel({
+  sessionId,
+  isLive,
+}: {
+  sessionId: Id<"callSessions"> | null;
+  isLive: boolean;
+}) {
   const [instructionText, setInstructionText] = useState("");
   const [approvedOfferInput, setApprovedOfferInput] = useState<string>("");
 
-  const { callSession, sendInstruction, applyApprovedOffer } = useCallStore((s) => ({
-    callSession: s.callSession,
-    sendInstruction: s.sendInstruction,
-    applyApprovedOffer: s.applyApprovedOffer
-  }));
+  const sendInstruction = useMutation(api.functions.operator.sendInstruction);
 
-  const status: CallStatus = callSession?.status ?? "IDLE";
-  const isLive = status === "LIVE";
-  const offer = callSession?.offer;
+  const instructionsData = useQuery(
+    api.functions.queries.operatorInstructions,
+    sessionId ? { sessionId } : "skip"
+  );
+
+  const session = useQuery(
+    api.functions.queries.activeSession,
+    sessionId ? { sessionId } : "skip"
+  );
+
+  const instructions = instructionsData?.instructions ?? [];
+  const offerState = session?.offerState;
 
   async function handleInstructionSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!instructionText.trim() || !callSession) return;
-    await sendInstruction(instructionText.trim());
+    if (!instructionText.trim() || !sessionId) return;
+
+    await sendInstruction({
+      sessionId,
+      type: "free_form",
+      payload: { instructionText: instructionText.trim() },
+    });
     setInstructionText("");
   }
 
   async function handleApplyOffer() {
-    if (!callSession) return;
-    const value = Number(approvedOfferInput || offer?.approvedAmount || offer?.baseAmount || 0);
+    if (!sessionId) return;
+    const value = Number(approvedOfferInput);
     if (!value || value <= 0) return;
-    await applyApprovedOffer(value);
-  }
 
-  function setQuickOffer(delta: number) {
-    if (!offer) return;
-    const current = offer.approvedAmount ?? offer.baseAmount;
-    const next = Math.max(1, current + delta);
-    setApprovedOfferInput(String(next));
-  }
+    const centerOptions = session?.centerOptions;
+    const centerId = centerOptions?.[0]?.id;
+    if (!centerId) return;
 
-  function matchRequested() {
-    if (!offer?.requestedAmount) return;
-    setApprovedOfferInput(String(offer.requestedAmount));
+    await sendInstruction({
+      sessionId,
+      type: "offer_adjustment",
+      payload: {
+        newOfferAmount: value,
+        centerId: centerId as string,
+      },
+    });
+    setApprovedOfferInput("");
   }
 
   return (
@@ -60,38 +78,23 @@ export function AgentControlPanel() {
         </p>
       </div>
 
-      {offer && callSession?.type === "PROMOTION" && (
+      {offerState && (
         <div className="space-y-2 rounded-lg border border-slate-800 bg-slate-950/80 p-3">
-          <div className="flex items-center justify-between text-xs text-slate-300">
-            <span className="font-medium">Current offer</span>
-            {offer.code && (
-              <span className="rounded-full bg-emerald-900/60 px-2 py-0.5 text-[11px] text-emerald-300">
-                Code assigned
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-3 gap-2 text-[11px] text-slate-400">
-            <div>
-              <div className="text-slate-500">Base</div>
-              <div className="text-sm font-semibold text-slate-100">${offer.baseAmount}</div>
-            </div>
-            <div>
-              <div className="text-slate-500">Customer asked</div>
-              <div className="text-sm font-semibold text-amber-300">
-                {offer.requestedAmount ? `$${offer.requestedAmount}` : "—"}
+          <div className="text-xs font-medium text-slate-300">Current discounts</div>
+          <div className="space-y-1 text-[11px]">
+            {session?.centerOptions?.map((center: any) => (
+              <div key={center.id} className="flex items-center justify-between text-slate-400">
+                <span>{center.name}</span>
+                <span className="text-emerald-300">
+                  ${center.discount} off &rarr; ${center.finalPrice}
+                </span>
               </div>
-            </div>
-            <div>
-              <div className="text-slate-500">Approved</div>
-              <div className="text-sm font-semibold text-emerald-300">
-                {offer.approvedAmount ? `$${offer.approvedAmount}` : "Not set"}
-              </div>
-            </div>
+            ))}
           </div>
 
           <div className="space-y-1 pt-1">
             <label className="text-[11px] font-medium text-slate-300">
-              Approve new amount (USD)
+              Adjust discount amount ($)
             </label>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
@@ -105,13 +108,7 @@ export function AgentControlPanel() {
                   value={approvedOfferInput}
                   onChange={(e) => setApprovedOfferInput(e.target.value)}
                   className="w-full rounded-md border border-slate-700 bg-slate-950 px-2 py-1 pl-5 text-xs text-slate-50 outline-none focus:border-accent focus:ring-1 focus:ring-accent"
-                  placeholder={
-                    offer.approvedAmount
-                      ? String(offer.approvedAmount)
-                      : offer.requestedAmount
-                      ? String(offer.requestedAmount)
-                      : String(offer.baseAmount)
-                  }
+                  placeholder="New discount"
                   disabled={!isLive}
                 />
               </div>
@@ -121,34 +118,7 @@ export function AgentControlPanel() {
                 disabled={!isLive}
                 className="rounded-md bg-accent px-3 py-1.5 text-xs font-semibold text-slate-950 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
               >
-                Apply offer
-              </button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
-              <button
-                type="button"
-                onClick={() => setQuickOffer(5)}
-                disabled={!isLive}
-                className="rounded-full border border-slate-700 px-2 py-0.5 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
-              >
-                + $5
-              </button>
-              <button
-                type="button"
-                onClick={() => setQuickOffer(10)}
-                disabled={!isLive}
-                className="rounded-full border border-slate-700 px-2 py-0.5 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
-              >
-                + $10
-              </button>
-              <button
-                type="button"
-                onClick={matchRequested}
-                disabled={!isLive || !offer.requestedAmount}
-                className="rounded-full border border-slate-700 px-2 py-0.5 text-slate-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-500"
-              >
-                Match request
+                Apply
               </button>
             </div>
           </div>
@@ -198,14 +168,12 @@ export function AgentControlPanel() {
         </div>
       </form>
 
-      <InstructionList />
+      <InstructionList instructions={instructions} />
     </div>
   );
 }
 
-function InstructionList() {
-  const instructions = useCallStore((s) => s.callSession?.instructions ?? []);
-
+function InstructionList({ instructions }: { instructions: any[] }) {
   if (!instructions.length) {
     return (
       <div className="rounded-lg border border-dashed border-slate-800 bg-slate-950/60 p-2 text-[11px] text-slate-500">
@@ -220,18 +188,24 @@ function InstructionList() {
         <span className="font-medium text-slate-200">Instruction history</span>
       </div>
       <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-        {instructions.map((instr) => (
+        {instructions.map((instr: any) => (
           <div
             key={instr.id}
             className="flex items-start justify-between gap-2 rounded border border-slate-800 bg-slate-950 px-2 py-1"
           >
             <div className="flex-1">
-              <div className="truncate text-slate-100">{instr.content}</div>
+              <div className="truncate text-slate-100">
+                {instr.type === "free_form"
+                  ? instr.payload?.instructionText
+                  : instr.type === "offer_adjustment"
+                  ? `Adjust to $${instr.payload?.newOfferAmount}`
+                  : instr.type}
+              </div>
               <div className="text-[10px] text-slate-500">
                 {new Date(instr.createdAt).toLocaleTimeString(undefined, {
                   hour: "2-digit",
                   minute: "2-digit",
-                  second: "2-digit"
+                  second: "2-digit",
                 })}
               </div>
             </div>
@@ -243,11 +217,11 @@ function InstructionList() {
   );
 }
 
-function StatusPill({ status }: { status: "pending" | "applied" | "rejected" }) {
+function StatusPill({ status }: { status: string }) {
   const label =
-    status === "pending" ? "Pending" : status === "applied" ? "Applied" : "Rejected";
+    status === "queued" ? "Pending" : status === "applied" ? "Applied" : "Rejected";
   const cls =
-    status === "pending"
+    status === "queued"
       ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
       : status === "applied"
       ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/30"
@@ -258,4 +232,3 @@ function StatusPill({ status }: { status: "pending" | "applied" | "rejected" }) 
     </span>
   );
 }
-

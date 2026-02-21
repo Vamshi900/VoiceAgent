@@ -93,6 +93,7 @@ export default defineSchema({
   callLogs: defineTable({
     sessionId: v.id("callSessions"),
     outcome: v.union(
+      v.literal("in_progress"),
       v.literal("booked"),
       v.literal("declined"),
       v.literal("follow_up"),

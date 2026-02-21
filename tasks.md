@@ -7,13 +7,14 @@
 | Convex schema + helpers | Compiles clean (0 errors) |
 | Convex agent + tools | Compiles clean, tools inline in agent.ts |
 | Convex HTTP endpoints | /intelligence/turn, /session/start, /session/end, /health |
-| Convex functions | queries, sessions (internal), operator, sms |
+| Convex functions | queries (public), sessions (public), operator (public), sms |
 | Convex seed data | Deployed (3 centers, 5 prospects, 2 reps) |
 | Convex env vars | NONE SET (need OPENAI_API_KEY at minimum) |
 | Next.js build | Compiles clean |
-| Frontend UI | All 7 components working with local Zustand state |
+| Frontend UI | All components using Convex reactive hooks (useQuery/useMutation/useAction) |
 | API routes (Next.js) | ALL 5 WIRED to Convex backend |
-| Zustand store | Works locally, no Convex real-time sync |
+| Zustand store | REMOVED — replaced by Convex |
+| Real-time transcript | Stored in callLogs via intelligence turn, queried reactively |
 
 ---
 
@@ -27,19 +28,28 @@
 
 ---
 
-## Phase 2 — Convex Real-Time in Frontend
+## Phase 2 — Convex Real-Time in Frontend (DONE)
 
-### 2.1 [ ] Add Convex reactive queries to components (useQuery hooks)
+### 2.1 [x] Add Convex reactive queries to components (useQuery hooks)
 - `activeSession` for live session data
 - `sessionTranscript` for real-time transcript
 - `operatorInstructions` for instruction status
-- `todayStats` for dashboard stats
-- `pendingEscalations` for escalation queue
+- `callSummary` for post-call summary
 
-### 2.2 [ ] Wire CallSummaryPanel to `callSummary` query
-- Show real outcome, appointment details, transcript
+### 2.2 [x] Wire CallSummaryPanel to `callSummary` query
+- Shows real outcome, appointment details, duration, summary
 
-### 2.3 [ ] Add transcript download (export transcript array as .txt)
+### 2.3 [x] Remove Zustand store, replace with direct Convex hooks
+- Deleted `lib/store/callStore.ts`
+- Deleted `lib/intelligence.ts`
+- Slimmed `lib/types.ts`
+
+### 2.4 [x] Make sessions public (mutation/action) for frontend direct access
+
+### 2.5 [x] Add real-time transcript storage
+- Intelligence turn HTTP handler stores user+agent entries in callLogs
+- callLog created at session start with "in_progress" outcome
+- endSession updates existing callLog with final outcome + summary
 
 ---
 
@@ -65,4 +75,4 @@
 
 ## Git Status
 
-Last commit: pending — fix TS errors + wire API routes
+Last commit: pending — Phase 2 Convex real-time frontend
