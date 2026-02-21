@@ -1,7 +1,7 @@
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { components, internal } from "./_generated/api";
-import { salesAgent, transferAgent } from "./agent";
+import { internal } from "./_generated/api";
+import { salesAgent } from "./agent";
 import { getGuardrailProvider } from "./guardrails/index";
 
 const http = httpRouter();
@@ -29,9 +29,9 @@ http.route({
     }
 
     // Load session
-    const session: any = await ctx.runQuery(async (ctx) =>
-      ctx.db.get(sessionId)
-    ).catch(() => null);
+    const session: any = await ctx
+      .runQuery(internal.helpers.getSession, { sessionId })
+      .catch(() => null);
 
     if (!session) {
       return new Response(
@@ -41,13 +41,9 @@ http.route({
     }
 
     // Check for pending operator instructions
-    const pendingInstructions: any[] = await ctx.runQuery(async (ctx) =>
-      ctx.db
-        .query("operatorInstructions")
-        .withIndex("by_session_status", (q: any) =>
-          q.eq("sessionId", sessionId).eq("status", "queued")
-        )
-        .collect()
+    const pendingInstructions: any[] = await ctx.runQuery(
+      internal.helpers.getQueuedInstructions,
+      { sessionId }
     );
 
     // Build context for the LLM
@@ -67,17 +63,19 @@ http.route({
       }
 
       // Mark instruction as applied
-      await ctx.runMutation(async (ctx) => {
-        await ctx.db.patch(instr._id, {
+      await ctx.runMutation(internal.helpers.patchInstruction, {
+        instructionId: instr._id,
+        patch: {
           status: "applied",
           appliedAtTurn: session.turnCount + 1,
-        });
+        },
       });
     }
 
     // Load centers for context
-    const centers: any[] = await ctx.runQuery(async (ctx) =>
-      ctx.db.query("centers").collect()
+    const centers: any[] = await ctx.runQuery(
+      internal.helpers.getAllCenters,
+      {}
     );
 
     const centerContext = centers
@@ -123,17 +121,18 @@ http.route({
           `Centers: ${centerContext}. ` +
           `${systemContext}`;
 
+        const fullPrompt = `[Context: ${contextMessage}]\n\n${prompt}`;
+
         const { thread } = await salesAgent.continueThread(ctx, { threadId });
         const result = await thread.generateText({
-          prompt: prompt,
-          system: contextMessage,
-        });
+          prompt: fullPrompt,
+        } as any);
 
         agentReply = result.text;
 
         // Check if any tools were called to determine action
         for (const step of result.steps ?? []) {
-          for (const toolResult of step.toolResults ?? []) {
+          for (const toolResult of (step as any).toolResults ?? []) {
             const toolName = toolResult.toolName;
             if (toolName === "transferToHuman") {
               action = "escalate";
@@ -165,12 +164,13 @@ http.route({
     }
 
     // Update session state
-    await ctx.runMutation(async (ctx) => {
-      await ctx.db.patch(sessionId, {
+    await ctx.runMutation(internal.helpers.patchSession, {
+      sessionId,
+      patch: {
         callPhase: updatedPhase,
         turnCount: session.turnCount + 1,
         lastTurnAt: Date.now(),
-      });
+      },
     });
 
     const response = {

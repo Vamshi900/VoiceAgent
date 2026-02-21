@@ -1,12 +1,12 @@
-import { mutation, action } from "../_generated/server";
+import { internalMutation, internalAction } from "../_generated/server";
 import { v } from "convex/values";
-import { components } from "../_generated/api";
-import { salesAgent, transferAgent } from "../agent";
+import { components, internal } from "../_generated/api";
+import { transferAgent } from "../agent";
 import { createThread } from "@convex-dev/agent";
 
 /* ── Create Session ───────────────────────────────────────────── */
 
-export const createSession = mutation({
+export const createSession = internalMutation({
   args: {
     prospectPhone: v.string(),
     callType: v.optional(v.string()),
@@ -84,7 +84,7 @@ export const createSession = mutation({
 
 /* ── End Session ──────────────────────────────────────────────── */
 
-export const endSession = action({
+export const endSession = internalAction({
   args: {
     sessionId: v.id("callSessions"),
     endReason: v.string(),
@@ -92,17 +92,20 @@ export const endSession = action({
     recordingUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const session = await ctx.runQuery(
-      async (ctx) => ctx.db.get(args.sessionId),
-    ).catch(() => null);
+    const session: any = await ctx
+      .runQuery(internal.helpers.getSession, {
+        sessionId: args.sessionId,
+      })
+      .catch(() => null);
 
     // Mark session as ended
-    await ctx.runMutation(async (ctx) => {
-      await ctx.db.patch(args.sessionId, {
+    await ctx.runMutation(internal.helpers.patchSession, {
+      sessionId: args.sessionId,
+      patch: {
         status: "ended",
         callPhase: "ended",
         endedAt: Date.now(),
-      });
+      },
     });
 
     // Generate summary using transfer agent
@@ -114,7 +117,7 @@ export const endSession = action({
         });
         const result = await thread.generateText({
           prompt: `The call has ended (reason: ${args.endReason}). Generate a brief 2-3 sentence summary of this call including: what was discussed, the outcome, and any follow-up needed.`,
-        });
+        } as any);
         summary = result.text;
       }
     } catch (e) {
@@ -124,9 +127,11 @@ export const endSession = action({
     // Determine outcome
     let outcome: string = "failed";
     if (session) {
-      const prospect: any = await ctx.runQuery(async (ctx) =>
-        ctx.db.get(session.prospectId)
-      ).catch(() => null);
+      const prospect: any = await ctx
+        .runQuery(internal.helpers.getProspect, {
+          prospectId: session.prospectId,
+        })
+        .catch(() => null);
 
       if (prospect?.status === "booked") outcome = "booked";
       else if (prospect?.status === "declined") outcome = "declined";
@@ -138,14 +143,12 @@ export const endSession = action({
     }
 
     // Create call log
-    await ctx.runMutation(async (ctx) => {
-      await ctx.db.insert("callLogs", {
-        sessionId: args.sessionId,
-        outcome: outcome as any,
-        transcript: [],
-        summary,
-        recordingUrl: args.recordingUrl,
-      });
+    await ctx.runMutation(internal.helpers.insertCallLog, {
+      sessionId: args.sessionId,
+      outcome,
+      transcript: [],
+      summary,
+      recordingUrl: args.recordingUrl,
     });
 
     return {

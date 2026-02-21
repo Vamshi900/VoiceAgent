@@ -1,42 +1,55 @@
 import { NextResponse } from "next/server";
-import type {
-  IntelligenceTurnRequest,
-  IntelligenceTurnResponse
-} from "../../../../lib/intelligence";
+
+const CONVEX_SITE_URL = process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as IntelligenceTurnRequest;
+  const body = await request.json();
 
-  // Simple stub: pick option B if user mentions "B" or "CVS",
-  // otherwise echo the previous selection or null.
-  const text = body.userUtterance.toLowerCase();
+  if (!CONVEX_SITE_URL) {
+    return NextResponse.json(
+      { error: "CONVEX_SITE_URL not configured" },
+      { status: 500 }
+    );
+  }
 
-  const pickedB = text.includes("option b") || text.includes("b ") || text.includes("cvs");
-  const selectedOptionId =
-    pickedB || body.memory.previousSelection === "B" ? "B" : body.memory.previousSelection;
+  try {
+    const res = await fetch(`${CONVEX_SITE_URL}/intelligence/turn`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: body.callSessionId ?? body.sessionId,
+        utterance: body.userUtterance ?? body.utterance,
+        callPhase: body.callPhase ?? "qa",
+        isSilence: body.isSilence ?? false,
+        metadata: body.metadata ?? {
+          turnId: body.turnId,
+          callDuration: body.callDuration ?? 0,
+        },
+      }),
+    });
 
-  const response: IntelligenceTurnResponse = {
-    callSessionId: body.callSessionId,
-    turnId: body.turnId,
-    selectedOptionId: selectedOptionId ?? null,
-    agentReplyText:
-      selectedOptionId === "B"
-        ? "Great, I’ll enroll you in Option B: a $25 discount at a CVS about 5 miles from you, valid at CVS locations nationwide. I just need to confirm that this is the best phone number to text your discount code to."
-        : "Thanks for letting me know. Could you confirm whether you prefer Option A, B, or C?",
-    discount:
-      selectedOptionId === "B"
-        ? {
-            amount: 25,
-            provider: "CVS",
-            validRegion: "NATIONAL"
-          }
-        : undefined,
-    updatedMemory: {
-      ...body.memory,
-      previousSelection: selectedOptionId ?? body.memory.previousSelection
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      return NextResponse.json(err, { status: res.status });
     }
-  };
 
-  return NextResponse.json(response);
+    const data = await res.json();
+
+    return NextResponse.json({
+      callSessionId: body.callSessionId ?? body.sessionId,
+      turnId: body.turnId,
+      agentReplyText: data.agentReply,
+      callPhase: data.callPhase,
+      action: data.action,
+      actionData: data.actionData,
+      offerState: data.offerState,
+      escalate: data.escalate,
+      escalateReason: data.escalateReason,
+    });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Intelligence turn failed" },
+      { status: 500 }
+    );
+  }
 }
-

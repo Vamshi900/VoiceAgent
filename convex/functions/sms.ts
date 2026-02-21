@@ -1,5 +1,6 @@
 import { action } from "../_generated/server";
 import { v } from "convex/values";
+import { internal } from "../_generated/api";
 import { getSmsProvider } from "../sms/index";
 
 /* ── Send SMS Action ──────────────────────────────────────────── */
@@ -24,16 +25,19 @@ export const sendReminderSms = action({
   },
   handler: async (ctx, args) => {
     // Load appointment and related data
-    const appointment: any = await ctx.runQuery(async (ctx) =>
-      ctx.db.get(args.appointmentId)
+    const appointment: any = await ctx.runQuery(
+      internal.helpers.getAppointment,
+      { appointmentId: args.appointmentId }
     );
     if (!appointment) return { error: "Appointment not found" };
 
-    const prospect: any = await ctx.runQuery(async (ctx) =>
-      ctx.db.get(appointment.prospectId)
+    const prospect: any = await ctx.runQuery(
+      internal.helpers.getProspect,
+      { prospectId: appointment.prospectId }
     );
-    const center: any = await ctx.runQuery(async (ctx) =>
-      ctx.db.get(appointment.centerId)
+    const center: any = await ctx.runQuery(
+      internal.helpers.getCenter,
+      { centerId: appointment.centerId }
     );
 
     if (!prospect || !center) return { error: "Missing data" };
@@ -48,8 +52,9 @@ export const sendReminderSms = action({
     const result = await sms.send(prospect.phone, body);
 
     if (result.success) {
-      await ctx.runMutation(async (ctx) => {
-        await ctx.db.patch(args.appointmentId, { reminderScheduled: true });
+      await ctx.runMutation(internal.helpers.patchAppointment, {
+        appointmentId: args.appointmentId,
+        patch: { reminderScheduled: true },
       });
     }
 
