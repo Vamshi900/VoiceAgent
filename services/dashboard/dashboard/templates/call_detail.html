@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Call Detail</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <a href="/calls">Back to calls</a>
+      <h1>Call <code id="call-id">{{ call_id }}</code></h1>
+      <section class="card" id="call-summary"></section>
+      <h2>Transcript</h2>
+      <ul id="transcript-list" class="transcript"></ul>
+    </main>
+    <script>window.CALL_ID = "{{ call_id }}";</script>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
