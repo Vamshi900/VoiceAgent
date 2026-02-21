@@ -69,24 +69,42 @@ async def entrypoint(ctx: JobContext) -> None:
 
     start_time = time.monotonic()
 
-    async def _push_transcript_async(event) -> None:  # type: ignore[no-untyped-def]
-        if not call_id:
-            return
-        try:
-            await push_transcript_turn(
-                call_id=call_id,
-                speaker=event.speaker,
-                text=event.text,
-                start_ms=int(event.start_time_ms),
-                end_ms=int(event.end_time_ms),
-                confidence=float(getattr(event, "confidence", 1.0)),
+    transcript_sink = settings.transcript_sink.strip().lower()
+
+    async def _handle_transcript_async(event) -> None:  # type: ignore[no-untyped-def]
+        speaker = str(getattr(event, "speaker", "unknown"))
+        text = str(getattr(event, "text", "")).strip()
+        start_ms = int(getattr(event, "start_time_ms", 0) or 0)
+        end_ms = int(getattr(event, "end_time_ms", 0) or 0)
+        confidence = float(getattr(event, "confidence", 1.0))
+
+        if transcript_sink in {"log", "both"} and text:
+            logger.info(
+                "Transcript turn room=%s call_id=%s speaker=%s start_ms=%s end_ms=%s text=%s",
+                ctx.room.name,
+                call_id,
+                speaker,
+                start_ms,
+                end_ms,
+                text,
             )
-        except Exception:
-            logger.exception("Failed to push transcript turn call_id=%s", call_id)
+
+        if transcript_sink in {"http", "both"} and call_id:
+            try:
+                await push_transcript_turn(
+                    call_id=call_id,
+                    speaker=speaker,
+                    text=text,
+                    start_ms=start_ms,
+                    end_ms=end_ms,
+                    confidence=confidence,
+                )
+            except Exception:
+                logger.exception("Failed to push transcript turn call_id=%s", call_id)
 
     @session.on("transcript")
     def on_transcript(event) -> None:  # type: ignore[no-untyped-def]
-        asyncio.create_task(_push_transcript_async(event))
+        asyncio.create_task(_handle_transcript_async(event))
 
     await session.start(room=ctx.room, agent=agent)
     await session.generate_reply(instructions=build_opening_instruction(context))
