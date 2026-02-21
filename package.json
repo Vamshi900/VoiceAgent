@@ -9,14 +9,22 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.30",
+    "@ai-sdk/provider-utils": "^4.0.15",
+    "@convex-dev/agent": "^0.3.2",
+    "ai": "^6.0.97",
     "clsx": "^2.1.0",
+    "convex": "^1.32.0",
+    "convex-helpers": "^0.1.113",
     "nanoid": "^5.0.7",
     "next": "14.1.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "zod": "^4.3.6",
     "zustand": "^4.5.2"
   },
   "devDependencies": {
+    "@types/node": "^25.3.0",
     "@types/react": "19.2.14",
     "autoprefixer": "10.4.17",
     "eslint": "8.57.0",

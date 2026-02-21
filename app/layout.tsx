@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import { ConvexProvider } from "./ConvexProvider";
 
 export const metadata = {
   title: "CallFlow Voice",
@@ -10,7 +11,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body className="min-h-screen bg-slate-950 text-slate-50">
-        {children}
+        <ConvexProvider>{children}</ConvexProvider>
       </body>
     </html>
   );
