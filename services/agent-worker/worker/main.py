@@ -19,7 +19,7 @@ settings = get_settings()
 
 try:
     from livekit.agents import Agent, AgentSession, JobContext, WorkerOptions, cli
-    from livekit.plugins import elevenlabs, openai
+    from livekit.plugins import elevenlabs, openai, silero
 except Exception as exc:
     logger.exception("Failed importing livekit agent packages: %s", exc)
     raise
@@ -61,6 +61,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     session = AgentSession(
         stt=build_local_whisper_stt(),
+        vad=silero.VAD.load(),
         llm=openai.LLM(model=settings.openai_model, api_key=settings.openai_api_key),
         tts=elevenlabs.TTS(api_key=settings.elevenlabs_api_key, voice_id=settings.elevenlabs_voice_id),
         allow_interruptions=True,
@@ -68,8 +69,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     start_time = time.monotonic()
 
-    @session.on("transcript")
-    async def on_transcript(event) -> None:  # type: ignore[no-untyped-def]
+    async def _push_transcript_async(event) -> None:  # type: ignore[no-untyped-def]
         if not call_id:
             return
         try:
@@ -83,6 +83,10 @@ async def entrypoint(ctx: JobContext) -> None:
             )
         except Exception:
             logger.exception("Failed to push transcript turn call_id=%s", call_id)
+
+    @session.on("transcript")
+    def on_transcript(event) -> None:  # type: ignore[no-untyped-def]
+        asyncio.create_task(_push_transcript_async(event))
 
     await session.start(room=ctx.room, agent=agent)
     await session.generate_reply(instructions=build_opening_instruction(context))
