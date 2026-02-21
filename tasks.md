@@ -9,70 +9,94 @@
 | Convex HTTP endpoints | /intelligence/turn, /session/start, /session/end, /health |
 | Convex functions | queries (public), sessions (public), operator (public), sms |
 | Convex seed data | Deployed (3 centers, 5 prospects, 2 reps) |
-| Convex env vars | NONE SET (need OPENAI_API_KEY at minimum) |
-| Next.js build | Compiles clean |
-| Frontend UI | All components using Convex reactive hooks (useQuery/useMutation/useAction) |
-| API routes (Next.js) | ALL 5 WIRED to Convex backend |
+| Next.js build | Compiles clean (7 routes + /api/voice/connect) |
+| Frontend UI | All components using Convex reactive hooks |
+| Voice pipeline | LiveKit + Twilio + Whisper STT + ElevenLabs TTS |
+| Agent worker | Convex bridge integrated (dual mode: Convex or direct OpenAI) |
+| Python API | FastAPI with PostgreSQL, Twilio/LiveKit webhooks |
+| Docker Compose | Full stack: postgres, redis, livekit, api, agent-worker, dashboards |
 | Zustand store | REMOVED — replaced by Convex |
-| Real-time transcript | Stored in callLogs via intelligence turn, queried reactively |
 
 ---
 
 ## Phase 1 — Wire Frontend to Convex (DONE)
 
-### 1.1 [x] Wire `/api/calls/outbound` → Convex `/session/start`
-### 1.2 [x] Wire `/api/intelligence/turn` → Convex `/intelligence/turn`
-### 1.3 [x] Wire `/api/calls/[id]/end` → Convex `/session/end`
-### 1.4 [x] Wire `/api/calls/[id]/instructions` → Convex mutation `sendInstruction`
-### 1.5 [x] Wire `/api/calls/[id]/send-discount-code` → Convex action `sendSms`
+### 1.1 [x] Wire all 5 API routes to Convex backend
 
 ---
 
 ## Phase 2 — Convex Real-Time in Frontend (DONE)
 
-### 2.1 [x] Add Convex reactive queries to components (useQuery hooks)
-- `activeSession` for live session data
-- `sessionTranscript` for real-time transcript
-- `operatorInstructions` for instruction status
-- `callSummary` for post-call summary
-
-### 2.2 [x] Wire CallSummaryPanel to `callSummary` query
-- Shows real outcome, appointment details, duration, summary
-
-### 2.3 [x] Remove Zustand store, replace with direct Convex hooks
-- Deleted `lib/store/callStore.ts`
-- Deleted `lib/intelligence.ts`
-- Slimmed `lib/types.ts`
-
-### 2.4 [x] Make sessions public (mutation/action) for frontend direct access
-
-### 2.5 [x] Add real-time transcript storage
-- Intelligence turn HTTP handler stores user+agent entries in callLogs
-- callLog created at session start with "in_progress" outcome
-- endSession updates existing callLog with final outcome + summary
+### 2.1 [x] Replace Zustand with Convex hooks (useQuery/useMutation/useAction)
+### 2.2 [x] Wire all components to reactive queries
+### 2.3 [x] Add real-time transcript storage
+### 2.4 [x] Make sessions public for frontend access
 
 ---
 
-## Phase 3 — Environment & Deployment
+## Phase 3 — Voice Pipeline Integration (DONE)
 
-### 3.1 [ ] Set Convex env vars
-- `OPENAI_API_KEY` (required for agent LLM)
-- `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM_NUMBER` (optional)
+### 3.1 [x] Cherry-pick Python services from master branch
+- services/api (FastAPI), services/agent-worker (LiveKit), services/dashboard
+- docker-compose.yml, infra/livekit/, tests/
 
-### 3.2 [x] Commit all pending changes
+### 3.2 [x] Create Convex bridge in agent-worker
+- worker/convex_bridge.py — HTTP client for Convex endpoints
+- create_session, send_turn, end_session
 
-### 3.3 [ ] Test end-to-end flow (start session → intelligence turn → end session)
+### 3.3 [x] Modify agent-worker to use Convex intelligence
+- Dual mode: Convex (tools/state/instructions) or direct OpenAI (fallback)
+- Updated prompts.py with CVS booking persona
+- config.py: added CONVEX_SITE_URL setting
+
+### 3.4 [x] Wire outbound voice flow end-to-end
+- /api/voice/connect route → Python API /v1/calls/outbound
+- Passes convex_session_id as participant attribute
+- CallStarterPanel triggers voice after Convex session
+
+### 3.5 [x] Update infrastructure
+- .env.example with all Convex + voice vars
+- docker-compose.yml with next-dashboard service
+- Dockerfile.next for Next.js container
+- Python API schema accepts convex_session_id
 
 ---
 
-## Phase 4 — Voice Integration (LATER)
+## Phase 4 — Environment & E2E Testing
 
-### 4.1 [ ] LiveKit/Twilio voice pipeline
-### 4.2 [ ] Real-time STT → intelligence turn → TTS loop
-### 4.3 [ ] Production deployment
+### 4.1 [ ] Set Convex env vars (OPENAI_API_KEY)
+### 4.2 [ ] Configure Twilio + LiveKit SIP trunk
+### 4.3 [ ] Test end-to-end: operator starts call → voice pipeline → intelligence → transcript
+### 4.4 [ ] Test operator instructions during live call
 
 ---
+
+## Phase 5 — Production Polish (LATER)
+
+### 5.1 [ ] Error handling & retry logic
+### 5.2 [ ] Call recording integration
+### 5.3 [ ] Dashboard stats with Convex todayStats query
+### 5.4 [ ] Escalation queue in frontend
+### 5.5 [ ] Production deployment
+
+---
+
+## Architecture
+
+```
+Operator Dashboard (Next.js :3000)
+    ↕ useQuery / useMutation / useAction
+Convex Intelligence Layer (convex.cloud)
+    ↑ HTTP: /intelligence/turn, /session/start, /session/end
+Agent Worker (LiveKit agent)
+    ↕ Whisper STT / ElevenLabs TTS
+LiveKit Server (:7880)
+    ↕ SIP Trunk
+Twilio PSTN
+    ↕
+Caller's Phone
+```
 
 ## Git Status
 
-Last commit: pending — Phase 2 Convex real-time frontend
+Last commit: pending — Voice pipeline integration

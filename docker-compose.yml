@@ -1,0 +1,106 @@
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TIMEZONE}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  livekit-server:
+    image: livekit/livekit-server:latest
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ./infra/livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881/udp"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:7880"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ./services/api
+    env_file:
+      - ./.env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      livekit-server:
+        condition: service_started
+
+  agent-worker:
+    build:
+      context: ./services/agent-worker
+    env_file:
+      - ./.env
+    environment:
+      # Convex intelligence layer — agent-worker routes voice through Convex
+      CONVEX_SITE_URL: ${CONVEX_SITE_URL:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      api:
+        condition: service_started
+      livekit-server:
+        condition: service_started
+
+  dashboard:
+    build:
+      context: ./services/dashboard
+    env_file:
+      - ./.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      api:
+        condition: service_started
+
+  # Next.js operator dashboard (Convex-powered)
+  next-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.next
+    environment:
+      NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL:-}
+      NEXT_PUBLIC_CONVEX_SITE_URL: ${CONVEX_SITE_URL:-}
+      VOICE_API_URL: http://api:8000
+      API_AUTH_TOKEN: ${API_AUTH_TOKEN:-}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_started
+
+volumes:
+  postgres-data:
+  redis-data:

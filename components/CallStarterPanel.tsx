@@ -36,11 +36,28 @@ export function CallStarterPanel({
     setIsLoading(true);
     setError(null);
     try {
+      // 1. Create Convex intelligence session
       const result = await createSession({
         prospectPhone: phone,
         callType,
       });
       onSessionCreated(result.sessionId);
+
+      // 2. Trigger voice pipeline (LiveKit + Twilio) via Python API
+      try {
+        await fetch("/api/voice/connect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            convexSessionId: result.sessionId,
+            phoneNumber: phone,
+            callType,
+          }),
+        });
+      } catch (voiceErr) {
+        // Voice connect is optional — Convex session still works for testing
+        console.warn("Voice pipeline not available:", voiceErr);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start call");
     } finally {

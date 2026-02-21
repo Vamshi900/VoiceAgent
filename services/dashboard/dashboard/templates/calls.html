@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Calls</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Calls</h1>
+      <div class="toolbar">
+        <select id="status-filter">
+          <option value="">All</option>
+          <option>queued</option>
+          <option>dialing</option>
+          <option>ringing</option>
+          <option>in_progress</option>
+          <option>completed</option>
+          <option>failed</option>
+          <option>no_answer</option>
+          <option>busy</option>
+          <option>canceled</option>
+        </select>
+        <button id="refresh-btn">Refresh</button>
+      </div>
+      <table id="calls-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Status</th>
+            <th>Direction</th>
+            <th>To</th>
+            <th>From</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
