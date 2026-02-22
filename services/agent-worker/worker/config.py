@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     max_call_duration_seconds: int = Field(alias="MAX_CALL_DURATION_SECONDS", default=900)
     agent_fallback_text: str = Field(alias="AGENT_FALLBACK_TEXT", default="Please try again later.")
 
+    # Transcript sink: "log" = Python API only, "http" = Convex only, "both" = both
+    transcript_sink: str = Field(alias="TRANSCRIPT_SINK", default="both")
+
 
 @lru_cache
 def get_settings() -> Settings:

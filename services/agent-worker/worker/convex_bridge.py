@@ -7,6 +7,7 @@ Handles session lifecycle and intelligence turn routing:
 """
 
 import logging
+import time as _time
 
 import httpx
 
@@ -53,6 +54,45 @@ async def send_turn(
         )
         r.raise_for_status()
         return r.json()
+
+
+async def store_transcript_entry(
+    session_id: str,
+    role: str,
+    text: str,
+    turn_number: int | None = None,
+) -> None:
+    """Append a single transcript entry to the Convex call log."""
+    entry: dict = {
+        "role": role,
+        "text": text,
+        "timestamp": int(_time.time() * 1000),
+    }
+    if turn_number is not None:
+        entry["turnNumber"] = turn_number
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(
+            f"{settings.convex_site_url}/transcript/append",
+            json={"sessionId": session_id, "entries": [entry]},
+            headers={"Content-Type": "application/json"},
+        )
+        r.raise_for_status()
+
+
+async def update_session(
+    session_id: str,
+    **patch: object,
+) -> None:
+    """Patch Convex session fields (livekitRoomId, callPhase, etc.)."""
+    payload: dict = {"sessionId": session_id, **patch}
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        r = await client.post(
+            f"{settings.convex_site_url}/session/update",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        r.raise_for_status()
 
 
 async def end_session(

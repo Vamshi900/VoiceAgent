@@ -90,6 +90,13 @@ export const appendTranscriptEntries = internalMutation({
       await ctx.db.patch(log._id, {
         transcript: [...log.transcript, ...args.entries],
       });
+    } else {
+      // Safety net: create callLog if it was not pre-created during session start
+      await ctx.db.insert("callLogs", {
+        sessionId: args.sessionId,
+        outcome: "in_progress" as any,
+        transcript: args.entries,
+      });
     }
   },
 });

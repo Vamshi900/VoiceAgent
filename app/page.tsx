@@ -22,16 +22,20 @@ export default function HomePage() {
 
   const endSession = useAction(api.functions.sessions.endSession);
 
-  // Map Convex status to UI status
+  // Map Convex status + callPhase to UI status
   const status: CallStatus = !sessionId
     ? "IDLE"
     : !session
-    ? "DIALING"
-    : session.status === "active" || session.status === "escalated"
-    ? "LIVE"
-    : session.status === "ended"
-    ? "COMPLETED"
-    : "LIVE";
+      ? "DIALING"
+      : session.status === "ended"
+        ? "COMPLETED"
+        : session.callPhase === "dialing"
+          ? "DIALING"
+          : session.callPhase === "pending"
+            ? "RINGING"
+            : session.status === "active" || session.status === "escalated"
+              ? "LIVE"
+              : "LIVE";
 
   async function handleEndCall() {
     if (!sessionId) return;

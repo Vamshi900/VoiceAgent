@@ -52,6 +52,22 @@ export async function POST(request: Request) {
 
     const data = await res.json();
 
+    // Update Convex session with the LiveKit room name
+    if (data.room_name) {
+      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL || process.env.CONVEX_SITE_URL;
+      if (convexUrl) {
+        // Fire-and-forget — don't block the response
+        fetch(`${convexUrl}/session/update`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            sessionId: convexSessionId,
+            livekitRoomId: data.room_name,
+          }),
+        }).catch(() => {});
+      }
+    }
+
     return NextResponse.json({
       callId: data.call_id,
       roomName: data.room_name,

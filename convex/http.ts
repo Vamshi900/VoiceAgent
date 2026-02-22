@@ -163,25 +163,19 @@ http.route({
       agentReply = guardrailResult.sanitized;
     }
 
-    // Store transcript entries for real-time display
-    const transcriptEntries: any[] = [];
-    if (utterance) {
-      transcriptEntries.push({
-        role: "user",
-        text: utterance,
-        timestamp: Date.now(),
-        turnNumber: session.turnCount + 1,
-      });
-    }
-    transcriptEntries.push({
-      role: "agent",
-      text: agentReply,
-      timestamp: Date.now(),
-      turnNumber: session.turnCount + 1,
-    });
+    // Store only the agent reply in transcript.
+    // User entries are stored directly by the agent-worker via /transcript/append
+    // to avoid duplicates (the worker callback fires for both user and agent speech).
     await ctx.runMutation(internal.helpers.appendTranscriptEntries, {
       sessionId,
-      entries: transcriptEntries,
+      entries: [
+        {
+          role: "agent",
+          text: agentReply,
+          timestamp: Date.now(),
+          turnNumber: session.turnCount + 1,
+        },
+      ],
     });
 
     // Update session state
@@ -260,6 +254,62 @@ http.route({
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
+  }),
+});
+
+/* ── Transcript Append Endpoint ────────────────────────────────── */
+
+http.route({
+  path: "/transcript/append",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = await request.json();
+    const { sessionId, entries } = body;
+
+    if (!sessionId || !Array.isArray(entries) || entries.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "sessionId and non-empty entries[] required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    await ctx.runMutation(internal.helpers.appendTranscriptEntries, {
+      sessionId,
+      entries,
+    });
+
+    return new Response(
+      JSON.stringify({ ok: true, count: entries.length }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }),
+});
+
+/* ── Session Update Endpoint ─────────────────────────────────── */
+
+http.route({
+  path: "/session/update",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const body = await request.json();
+    const { sessionId, ...patch } = body;
+
+    if (!sessionId) {
+      return new Response(
+        JSON.stringify({ error: "sessionId is required" }),
+        { status: 400, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    await ctx.runMutation(internal.helpers.patchSession, {
+      sessionId,
+      patch,
+    });
+
+    return new Response(
+      JSON.stringify({ ok: true }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
   }),
 });
 

@@ -37,6 +37,12 @@ export function CallStatusBar({
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-800 bg-slate-900/80 px-3 py-2 text-xs">
       <div className="flex items-center gap-2">
+        {status === "LIVE" && (
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+        )}
         <span className={`rounded-full px-2 py-0.5 font-medium ${statusColor(status)}`}>
           {statusLabels[status]}
         </span>

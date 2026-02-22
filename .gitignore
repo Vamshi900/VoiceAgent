@@ -36,7 +36,17 @@ Thumbs.db
 # Convex
 .convex-generated/
 
-# Python (if LiveKit agent added later)
+# Python
 __pycache__/
 *.py[cod]
 .venv/
+*.egg-info/
+*.egg
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Docker
+docker-compose.override.yml
+
+# Misc
+*.tsbuildinfo

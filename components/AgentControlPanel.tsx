@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
@@ -189,30 +189,54 @@ function InstructionList({ instructions }: { instructions: any[] }) {
       </div>
       <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
         {instructions.map((instr: any) => (
-          <div
-            key={instr.id}
-            className="flex items-start justify-between gap-2 rounded border border-slate-800 bg-slate-950 px-2 py-1"
-          >
-            <div className="flex-1">
-              <div className="truncate text-slate-100">
-                {instr.type === "free_form"
-                  ? instr.payload?.instructionText
-                  : instr.type === "offer_adjustment"
-                  ? `Adjust to $${instr.payload?.newOfferAmount}`
-                  : instr.type}
-              </div>
-              <div className="text-[10px] text-slate-500">
-                {new Date(instr.createdAt).toLocaleTimeString(undefined, {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                })}
-              </div>
-            </div>
-            <StatusPill status={instr.status} />
-          </div>
+          <InstructionItem key={instr.id} instr={instr} />
         ))}
       </div>
+    </div>
+  );
+}
+
+function InstructionItem({ instr }: { instr: any }) {
+  const [flash, setFlash] = useState(false);
+  const prevStatus = useRef(instr.status);
+
+  useEffect(() => {
+    if (instr.status !== prevStatus.current) {
+      prevStatus.current = instr.status;
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [instr.status]);
+
+  return (
+    <div
+      className={`flex items-start justify-between gap-2 rounded border border-slate-800 bg-slate-950 px-2 py-1 transition-colors duration-500 ${
+        flash ? "bg-emerald-950/40 border-emerald-700/40" : ""
+      }`}
+    >
+      <div className="flex-1">
+        <div className="truncate text-slate-100">
+          {instr.type === "free_form"
+            ? instr.payload?.instructionText
+            : instr.type === "offer_adjustment"
+            ? `Adjust to $${instr.payload?.newOfferAmount}`
+            : instr.type}
+        </div>
+        <div className="text-[10px] text-slate-500">
+          {new Date(instr.createdAt).toLocaleTimeString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })}
+          {instr.appliedAtTurn != null && (
+            <span className="ml-1 text-emerald-400">
+              (applied at turn {instr.appliedAtTurn})
+            </span>
+          )}
+        </div>
+      </div>
+      <StatusPill status={instr.status} />
     </div>
   );
 }
